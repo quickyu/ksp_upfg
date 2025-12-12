@@ -165,4 +165,4 @@ def open_loop_guidance(vessel:Vessel, upfg_target:dict):
 
       time.sleep(0.01)  
 
-   print('Flight control finished')   
+   print('Open Loop Guidance finished')   
