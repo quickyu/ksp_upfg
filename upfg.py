@@ -26,6 +26,7 @@ def setup_upfg_target(vessel:Vessel) -> dict:
    flight_path_angle = math.acos(srm / (target_velocity * target_altitude)) # radians
 
    upfg_target = {'radius': target_altitude, 'velocity': target_velocity, 'angle': flight_path_angle}
+   return upfg_target
 
 def setup_target_normal(normal:np.ndarray):
    upfg_target['normal'] = normal 
