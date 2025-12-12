@@ -32,9 +32,9 @@ def launch_azimuth(vessel:Vessel, target_vel, target_inc, flight_path_angle) -> 
    azi = math.degrees(azi)
 
    if settings.mission['direction'].upper() == 'NORTH':
-      return azi
+      return 90.0 - azi
    elif settings.mission['direction'].upper() == 'SOUTH':
-      return azi
+      return 90.0 + azi
    else:
       raise Exception('Unknown launch direction.')
 
