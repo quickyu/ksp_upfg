@@ -7,10 +7,6 @@ import settings
 from vessel_state import *
 from utilities import *
 
-vehicle = None
-upfg_target = None
-upfg_internal = None
-
 def setup_upfg_target(vessel:Vessel) -> dict:
    if settings.mission['altitude'] < settings.mission['periapsis'] or settings.mission['altitude'] > settings.mission['apoapsis']: 
       settings.mission["altitude"]  = settings.mission["periapsis"]
@@ -28,21 +24,23 @@ def setup_upfg_target(vessel:Vessel) -> dict:
    upfg_target = {'radius': target_altitude, 'velocity': target_velocity, 'angle': flight_path_angle}
    return upfg_target
 
-def setup_target_normal(normal:np.ndarray):
-   upfg_target['normal'] = normal 
-
+def setup_target_normal(vessel:Vessel, inc:float, lan:float, target:dict):
+   # UPFG compatible direction.
+   # UPFG requires it to point opposite to a direction of vector of angular momentum for the orbit.
+   target['normal'] = -target_normal_ECEF(vessel, inc, lan) 
+    
 def upfg_initial(vessel:Vessel, target:dict) -> dict:
    ref_frame = vessel.orbit.body.reference_frame
-   normal = target_normal(vessel, settings.mission['inclination'], settings.mission['LAN'])
+   normal = target_normal_ECEF(vessel, settings.mission['inclination'], settings.mission['LAN'])
 
    position = np.array(vessel.position(ref_frame))
-   dest_r = rodrigues_rotation(position, -normal, -np.radians(20))
+   dest_r = rodrigues_rotation(position, normal, np.radians(-20.0))
    dest_r = normalize_vector(dest_r) * target['radius']
   
    velocity = np.array(vessel.velocity(ref_frame))
-   vgo = target['velocity'] * normalize_vector(np.cross(normal, dest_r)) - velocity
+   vgo = target['velocity'] * normalize_vector(np.cross(dest_r, normal)) - velocity
 
-   upfg_internal =  {
+   return {
       'cse_x0': 0.0, 
       'rbias': np.array([0.0, 0.0, 0.0]), 
       'rd': dest_r, 
@@ -54,63 +52,45 @@ def upfg_initial(vessel:Vessel, target:dict) -> dict:
       'vgo': vgo
       }
 
-def initialize_vehicle_for_upfg(state:VesselState):
-   mass_total = state.mass()
-   mass_dry = state.dry_mass()
-   mass_fuel = mass_total - mass_dry
-   max_t = mass_fuel / (state.thrust() / state.specific_impulse() / 9.81)
-   
-   vehicle = {
-      'mass_total': mass_total,
-      'mass_dry': mass_dry,
-      'mass_fuel': mass_fuel,
-      'max_t': max_t,
-      'engine_isp': state.specific_impulse(),
-      'engine_thrust': state.thrust()
-      }
-def upfg(current_state:VesselState) -> dict:
+def upfg_control(current_state:VesselState, target:dict, internal:dict) -> dict:
    #block0
-   gamma	= upfg_target['angle']
-   iy = upfg_target['normal']
-   rdval = upfg_target['radius']
-   vdval = upfg_target['velocity']
+   gamma	= target['angle']
+   iy = target['normal']
+   rdval = target['radius']
+   vdval = target['velocity']
 
    current_time = current_state.universal_time()
    mass = current_state.mass()
    pos = current_state.position()
    vel = current_state.velocity()
 
-   cse_x0 = upfg_internal['cse_x0']
-   rbias = upfg_internal['rbias']
-   rd = upfg_internal['rd']
-   rgrav = upfg_internal['rgrav']
-   prev_time = upfg_internal['time']   
-   prev_vel = upfg_internal['v']
-   vgo = upfg_internal['vgo']
+   cse_x0 = internal['cse_x0']
+   rbias = internal['rbias']
+   rd = internal['rd']
+   rgrav = internal['rgrav']
+   prev_time = internal['time']   
+   prev_vel = internal['v']
+   vgo = internal['vgo']
 
    #block1
-   ve = vehicle['engine_isp'] * 9.81
-   ft = vehicle['engine_thrust']
-   tb = vehicle['max_t']
+   ve = current_state.specific_impulse() * 9.81
+   ft = current_state.thrust()
+   tb = settings.stage2_burn_time
 
    #block2
    dt = current_time - prev_time
-
-   dv = vel - upfg_internal['v']
-   vgo = upfg_internal['vgo'] - dv
-   vgo1 = vgo
-
-   tb = tb - upfg_internal['tb']
+   dv = vel - internal['v']
+   vgo = internal['vgo'] - dv
+   #tb = tb - internal['tb']
 
    #block3 
    tu = ve / (ft / mass)
-   Li = np.linalg.norm(vgo)
-   tb = tu * (1 - math.exp(-Li / ve))
+   L1 = np.linalg.norm(vgo)
+   tb = tu * (1 - math.exp(-L1 / ve))
    tgo = tb
-   tgoi1 = tb
 
    #block4 
-   L = Li
-   J = tu * Li - ve * tb + L * tgoi1
-   S = -J + tb * Li
+   L = L1
+   J = tu * L1 - ve * tb + L * tgo
+   S = -J + tb * L
 
