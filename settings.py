@@ -17,3 +17,5 @@ target_picth = 30.0
 
 booster_burn_time = 126.0
 first_stage_burn_time = 228.0
+
+stage2_burn_time = 249.42
