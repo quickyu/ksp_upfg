@@ -30,15 +30,16 @@ def wait_for_launch(vessel:Vessel, liftoff_time:int, indicator=False):
 
             client.drawing.clear()
 
-            position = cartesian_position(vessel)
+            position = cartesian_position(vessel, vessel.orbit.body.reference_frame) # ECEF position
             ls_normal = normalize_vector(np.array(position))
             earth = vessel.orbit.body
             line = client.drawing.add_direction_from_com(ls_normal, earth.reference_frame, 200)
             line.color = (1, 0, 0)
             line.thickness = 1
   
-            orbit_normal = target_normal(vessel, np.radians(settings.mission['inclination']), np.radians(settings.mission['LAN']))
-            line = client.drawing.add_direction_from_com(tuple(orbit_normal.tolist()), earth.reference_frame, 200)
+            orbit_normal = target_normal_ECEF(vessel, np.radians(settings.mission['inclination']), np.radians(settings.mission['LAN']))
+
+            line = client.drawing.add_direction_from_com(orbit_normal.tolist(), earth.reference_frame, 200)
             line.color = (0, 1, 0)
             line.thickness = 1
 
@@ -48,7 +49,7 @@ def wait_for_launch(vessel:Vessel, liftoff_time:int, indicator=False):
    if indicator:
       client.drawing.clear()   
       
-def open_loop_guidance(vessel:Vessel, upfg_target:dict):
+def atmospheric_flight_control(vessel:Vessel, upfg_target:dict):
    client = vessel._client
    
    ref_frame = client.space_center.ReferenceFrame.create_hybrid(
@@ -97,7 +98,7 @@ def open_loop_guidance(vessel:Vessel, upfg_target:dict):
 
    while not finished:
       flight_time = ut() - liftoff_time
-
+      
       if not booster_separated and flight_time >= settings.booster_burn_time:
          print('Booster separation')
          vessel.control.activate_next_stage()
@@ -115,20 +116,20 @@ def open_loop_guidance(vessel:Vessel, upfg_target:dict):
          
       match state:
          case FlightState.takeoff:
-            print('State: takeoff')
+            #print('State: takeoff')
             if mean_altitude() > settings.roll_altitude:
                state = FlightState.roll_maneuver
          case FlightState.roll_maneuver:
-            print('State: roll_maneuver')
+            #print('State: roll_maneuver')
             azi = math.degrees(initial_azimuth(vessel))
-            print(f'roll_maneuver: azi {azi:.2f}')
+            #print(f'roll_maneuver: azi {azi:.2f}')
             if (math.fabs(azi - target_azimuth) < 1.0):
                state = FlightState.pitch_maneuver
                pitch_angle = 90.0
             else:   
                vessel.auto_pilot.target_pitch_and_heading(90, target_azimuth)       
          case FlightState.pitch_maneuver: 
-            print('State: pitch_maneuver')
+            #print('State: pitch_maneuver')
             if not start_pitch_manuever:
                if velocity()[0] > settings.pitch_velocity:
                   start_pitch_manuever = True
@@ -165,4 +166,4 @@ def open_loop_guidance(vessel:Vessel, upfg_target:dict):
 
       time.sleep(0.01)  
 
-   print('Open Loop Guidance finished')   
+   print('atmospheric_flight_control finished')   
