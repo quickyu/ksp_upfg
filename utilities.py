@@ -59,8 +59,8 @@ def geo_position(vessel:Vessel) -> tuple[float, float]:
    lat = earth.latitude_at_position(position_ecef, ecef_reference_frame)
    return long, lat
 
-def cartesian_position(vessel:Vessel) -> tuple[float, float, float]:
-   return vessel.position(vessel.orbit.body.reference_frame) 
+def cartesian_position(vessel:Vessel, reference_frame:ReferenceFrame) -> tuple[float, float, float]:
+   return vessel.position(reference_frame) 
 
 def rodrigues_rotation(v:np.ndarray, k:np.ndarray, theta:float) -> np.ndarray:
    """
@@ -103,7 +103,7 @@ def ascending_node_vector(vessel:Vessel, orbit_inclination:float, dir:str) -> np
    b = np.tan(np.pi/2 - orbit_inclination) * np.tan(np.radians(lat))
    b = np.arcsin(np.fmin(np.fmax(-1., b), 1.))
 
-   position = cartesian_position(vessel)
+   position = cartesian_position(vessel, vessel.orbit.body.reference_frame)
    long_vector = vector_exclude(np.array([0., 1., 0.]), -np.array(position))
    long_vector = normalize_vector(long_vector)
 
@@ -144,11 +144,15 @@ def orbit_intercept_time(vessel:Vessel, dir:str, inclination:float, lan:float) -
 
       return vessel.orbit.body.rotational_period * node_delta / (2 * np.pi)
    
-def target_normal(vessel:Vessel, inc:float, lan:float) -> np.ndarray:
-   earth = vessel.orbit.body
-   high_point = rodrigues_rotation(np.array([1., 0., 0.]), np.array([0., 1., 0.]), -np.pi/2 + lan)
+def target_normal(inc:float, lan:float) -> np.ndarray:
+   high_point = rodrigues_rotation(np.array([1., 0., 0.]), np.array([0., 1., 0.]), np.pi/2 - lan)
    rot_axis = normalize_vector(high_point[[2, 1, 0]]*np.array([-1., 1., 1.]))
-   normal_vector = rodrigues_rotation(high_point, rot_axis, -np.pi/2 + inc)
 
+   return rodrigues_rotation(high_point, rot_axis, np.pi/2 - inc) # ksp left hand ECI coordinate system 
+
+def target_normal_ECEF(vessel:Vessel, inc:float, lan:float) -> np.ndarray:
    client = vessel._client
-   return np.array(client.space_center.transform_direction(tuple(normal_vector.tolist()), earth.non_rotating_reference_frame, earth.reference_frame))
+   return np.array(client.space_center.transform_direction(
+                     target_normal(inc, lan).tolist(), 
+                     vessel.orbit.body.non_rotating_reference_frame,
+                     vessel.orbit.body.reference_frame))
