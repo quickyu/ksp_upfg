@@ -14,22 +14,28 @@ class TestCSE(unittest.TestCase):
 
    def test(self):
       position = [
-         [7000000, 0, -12124000], 
-         [6678137, 0.0, 0.0], 
-         ] # m
+         [7000000.0, -12124000.0, 0.0], 
+         [6678137.0, 0.0, 0.0], 
+         [7000000.0, 0.0, 0.0],
+         [26560000.0, 0.0, 0.0],
+      ] # m
       
       velocity = [
-         [2667.9, 0, 4621.0], 
-         [0.0, 7612.2, 0.0],
-         ] # m/s
+         [2667.9, 4621.0, 0.0], 
+         [0.0, 0.0, 7612.2],
+         [0.0, 1000.0, 7546.049],
+         [0.0, 500.0, 2965.000]
+      ] # m/s
       
       dt = [600, 1800, 3600, 7200, 14400, 28800, 57600, 86400]
 
-      for row in range(2):
+      for row in range(4):
+         print(f'num={row}')
          r0 = position[row]
          v0 = velocity[row]
 
          for t in dt:
+            print(f't = {t}')
             r1, v1, x = conic_state_extrapolation(r0, v0, t)
             print(f'r1 = {r1}, v1 = {v1}')
 
@@ -42,6 +48,8 @@ class TestCSE(unittest.TestCase):
 
             self.assertTrue(np.allclose(r1, r2))
             self.assertTrue(np.allclose(v1, v2))
+
+         print('\n')   
 
 if __name__ == '__main__':
    unittest.main()         
