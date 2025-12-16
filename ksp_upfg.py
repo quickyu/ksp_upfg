@@ -4,9 +4,14 @@ import numpy as np
 
 import settings
 from utilities import * 
-from flight_manager import *
-from flight_time_window import *
+from AtmosphericFlight import wait_for_launch, atmospheric_flight_control
+from flight_time_window import FlightTimeWindow
 import upfg
+
+client = krpc.connect(name='Launch to orbit')
+vessel = client.space_center.active_vessel
+vessel.auto_pilot.engage()
+del client
 
 client = krpc.connect(name='Launch to orbit')
 vessel = client.space_center.active_vessel
@@ -27,7 +32,7 @@ ft = FlightTimeWindow(liftoff_time)
 
 wait_for_launch(vessel, liftoff_time, True)
 
-open_loop_guidance(vessel, upfg_target)
+atmospheric_flight_control(vessel, upfg_target)
 
 while True:
    time.sleep(1)
