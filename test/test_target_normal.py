@@ -26,7 +26,7 @@ class TestTargetNormal(unittest.TestCase):
       ]
 
       for sample in test_data:
-         normal = target_normal(math.radians(sample['inc']), math.radians(sample['raan']))
+         normal = target_normal(sample['inc'], sample['raan'])
          normal = normalize_vector(normal)
          print(f'normal: {normal}')
          self.assertTrue(np.allclose(normal[[0, 2, 1]], sample['normal']))
