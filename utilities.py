@@ -12,7 +12,7 @@ def initial_azimuth(vessel:Vessel) -> float:
    azi = angle_between_vectors(np.array([0, 1, 0]), np.array(ori))
    if ori[2] < 0: 
       azi = -azi
-   return azi
+   return math.degrees(azi)
 
 def launch_azimuth(vessel:Vessel, target_vel, target_inc, flight_path_angle) -> float:
    long, lat = geo_position(vessel)
@@ -25,7 +25,7 @@ def launch_azimuth(vessel:Vessel, target_vel, target_inc, flight_path_angle) -> 
 
    earth = vessel.orbit.body
    vbody = (2 * math.pi * earth.equatorial_radius / earth.rotational_period ) / math.cos(math.radians(lat))
-   vorbit = target_vel * math.cos(flight_path_angle)
+   vorbit = target_vel * math.cos(math.radians(flight_path_angle))
    vrotx = vorbit * math.sin(binertial) - vbody
    vroty = vorbit * math.cos(binertial)
    azi = math.atan2(vroty, vrotx)
@@ -119,6 +119,9 @@ def ascending_node_vector(vessel:Vessel, orbit_inclination:float, dir:str) -> np
 def orbit_intercept_time(vessel:Vessel, dir:str, inclination:float, lan:float) -> float:
    client = vessel._client
 
+   inclination = math.radians(inclination)
+   lan = math.radians(lan)
+
    if dir.upper() == 'NEAREST':
       time_n = orbit_intercept_time(client, 'NORTH', inclination, lan)
       time_s = orbit_intercept_time(client, 'SOUTH', inclination, lan)
@@ -145,6 +148,9 @@ def orbit_intercept_time(vessel:Vessel, dir:str, inclination:float, lan:float) -
       return vessel.orbit.body.rotational_period * node_delta / (2 * np.pi)
    
 def target_normal(inc:float, lan:float) -> np.ndarray:
+   inc = math.radians(inc)
+   lan = math.radians(lan)
+
    high_point = rodrigues_rotation(np.array([1., 0., 0.]), np.array([0., 1., 0.]), np.pi/2 - lan)
    rot_axis = normalize_vector(high_point[[2, 1, 0]]*np.array([-1., 1., 1.]))
 
@@ -156,3 +162,16 @@ def target_normal_ECEF(vessel:Vessel, inc:float, lan:float) -> np.ndarray:
                      target_normal(inc, lan).tolist(), 
                      vessel.orbit.body.non_rotating_reference_frame,
                      vessel.orbit.body.reference_frame))
+
+def draw_vector(vessel:Vessel, vector:np.ndarray, color:tuple, ref_frame:ReferenceFrame, length:float):
+   client = vessel._client
+
+   vector = vector / np.linalg.norm(vector)
+
+   line = client.drawing.add_direction_from_com(vector.tolist(), ref_frame, length)
+   line.color = color
+   line.thickness = 1
+
+def clear_lines(vessel:Vessel):
+   client = vessel._client
+   client.drawing.clear()
