@@ -20,7 +20,7 @@ def wait_for_launch(vessel:Vessel, liftoff_time:int, indicator=False):
    refresh_counter = 0
    current_time = int(client.space_center.ut)
 
-   client.space_center.warp_to(liftoff_time - 30)
+   client.space_center.warp_to(liftoff_time - 10)
 
    while current_time < liftoff_time:
       if indicator:
@@ -37,7 +37,7 @@ def wait_for_launch(vessel:Vessel, liftoff_time:int, indicator=False):
             line.color = (1, 0, 0)
             line.thickness = 1
   
-            orbit_normal = target_normal_ECEF(vessel, np.radians(settings.mission['inclination']), np.radians(settings.mission['LAN']))
+            orbit_normal = target_normal_ECEF(vessel, settings.mission['inclination'], settings.mission['LAN'])
 
             line = client.drawing.add_direction_from_com(orbit_normal.tolist(), earth.reference_frame, 200)
             line.color = (0, 1, 0)
@@ -49,7 +49,7 @@ def wait_for_launch(vessel:Vessel, liftoff_time:int, indicator=False):
    if indicator:
       client.drawing.clear()   
       
-def atmospheric_flight_control(vessel:Vessel, upfg_target:dict):
+def atmospheric_flight_control(vessel:Vessel, upfg_target):
    client = vessel._client
    
    ref_frame = client.space_center.ReferenceFrame.create_hybrid(
@@ -65,10 +65,12 @@ def atmospheric_flight_control(vessel:Vessel, upfg_target:dict):
    roll = client.add_stream(getattr, flight_info, 'roll')
    heading = client.add_stream(getattr, flight_info, 'heading')
    angle_of_attack = client.add_stream(getattr, flight_info, 'angle_of_attack')
-   
-   target_azimuth = launch_azimuth(vessel, upfg_target['velocity'], settings.mission['inclination'], upfg_target['angle'])
+   thrust = client.add_stream(getattr, vessel, 'thrust')
+   available_thrust = client.add_stream(getattr, vessel, 'available_thrust')
+
+   target_azimuth = launch_azimuth(vessel, upfg_target.velocity, settings.mission['inclination'], upfg_target.angle)
    print(f'Target azimuth: {target_azimuth:.2f}')
-   initial_azi = math.degrees(initial_azimuth(vessel))
+   initial_azi = initial_azimuth(vessel)
    print(f'Initial azimuth: {initial_azi:.2f}')
 
    vessel.control.throttle = 1.0
@@ -79,7 +81,10 @@ def atmospheric_flight_control(vessel:Vessel, upfg_target:dict):
    vessel.auto_pilot.engage()
 
    vessel.control.activate_next_stage() # main engine ignition
-   time.sleep(5)
+
+   while thrust() < available_thrust() * 0.9:
+      pass
+
    vessel.control.activate_next_stage() # booster ignition
    time.sleep(0.1)
    vessel.control.activate_next_stage() # lift off
@@ -121,7 +126,7 @@ def atmospheric_flight_control(vessel:Vessel, upfg_target:dict):
                state = FlightState.roll_maneuver
          case FlightState.roll_maneuver:
             #print('State: roll_maneuver')
-            azi = math.degrees(initial_azimuth(vessel))
+            azi = initial_azimuth(vessel)
             #print(f'roll_maneuver: azi {azi:.2f}')
             if (math.fabs(azi - target_azimuth) < 1.0):
                state = FlightState.pitch_maneuver
@@ -166,4 +171,4 @@ def atmospheric_flight_control(vessel:Vessel, upfg_target:dict):
 
       time.sleep(0.01)  
 
-   print('atmospheric_flight_control finished')   
+   print('atmospheric flight control finished')   
