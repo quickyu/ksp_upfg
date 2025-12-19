@@ -22,11 +22,28 @@ class VesselState:
 
       self.thrust_ = client.add_stream(getattr, vessel, 'thrust') 
 
+      self.available_thrust_ = client.add_stream(getattr, vessel, 'available_thrust')
+
       self.isp_ = client.add_stream(getattr, vessel, 'specific_impulse')
 
       self.direction_eci_ = client.add_stream(vessel.direction, vessel.orbit.body.non_rotating_reference_frame)
       
       self.speed_eci_ = client.add_stream(getattr, vessel.flight(vessel.orbit.body.non_rotating_reference_frame), 'speed')
+
+      ref_frame = client.space_center.ReferenceFrame.create_hybrid(position=vessel.orbit.body.non_rotating_reference_frame,
+                                                               rotation=vessel.surface_reference_frame)
+      
+      self.vertical_speed_ = client.add_stream(getattr, vessel.flight(ref_frame), 'vertical_speed')
+
+      self.mean_altitude_ = client.add_stream(getattr, vessel.flight(), 'mean_altitude')
+
+      self.pitch_ = client.add_stream(getattr, vessel.flight(), 'pitch')
+
+      self.roll_ = client.add_stream(getattr, vessel.flight(), 'roll')
+
+      self.heading_ = client.add_stream(getattr, vessel.flight(), 'heading')
+
+      self.angle_of_attack_ = client.add_stream(getattr, vessel.flight(), 'angle_of_attack')
 
    def universal_time(self) -> float:
       return self.ut_()
@@ -52,6 +69,9 @@ class VesselState:
    def thrust(self) -> float:
       return self.thrust_()   
    
+   def available_thrust(self) -> float:
+      return self.available_thrust_()
+   
    def specific_impulse(self) -> float:
       return self.isp_()
    
@@ -60,3 +80,21 @@ class VesselState:
    
    def speed_eci(self) -> float:
       return self.speed_eci_()
+   
+   def vertical_speed(self) -> float:
+      return self.vertical_speed_()
+   
+   def pitch(self) -> float:
+      return self.pitch_()
+   
+   def roll(self) -> float:
+      return self.roll_()
+   
+   def heading(self) -> float:
+      return self.heading_()
+   
+   def angle_of_attack(self) -> float:
+      return self.angle_of_attack_()
+   
+   def mean_altitude(self) -> float:
+      return self.mean_altitude_()
