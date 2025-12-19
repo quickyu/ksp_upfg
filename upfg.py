@@ -259,7 +259,7 @@ def upfg_control(vehicle:list, target:Struct, previous:Struct, state:VesselState
    guidance.i_f = i_f
    guidance.tgo = tgo
 
-   return [previous, guidance]
+   return previous, guidance
 
 def cse_routine(r0, v0, dt, last):
    r0 = np.asarray(r0)
