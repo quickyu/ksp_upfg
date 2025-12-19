@@ -5,6 +5,7 @@ import math
 import time
 
 import settings
+from vessel_state import VesselState
 
 def initial_azimuth(vessel:Vessel) -> float:
    client = vessel._client
@@ -39,7 +40,7 @@ def launch_azimuth(vessel:Vessel, target_vel, target_inc, flight_path_angle) -> 
       raise Exception('Unknown launch direction.')
 
 def angle_between_vectors(a:np.ndarray, b:np.ndarray) -> float:
-   if np.linalg.norm(a) == 0 or np.linalg.norm(b) == 0:
+   if np.linalg.norm(a) == 0.0 or np.linalg.norm(b) == 0.0:
       return 0.0
     
    dot_product = np.dot(a, b)
@@ -175,3 +176,11 @@ def draw_vector(vessel:Vessel, vector:np.ndarray, color:tuple, ref_frame:Referen
 def clear_lines(vessel:Vessel):
    client = vessel._client
    client.drawing.clear()
+
+def delay(state:VesselState, t:float):
+   t -= 0.02
+   ts = state.universal_time()
+   elapse = 0.0
+   while elapse < t:
+      time.sleep(0.001)
+      elapse = state.universal_time() - ts   
