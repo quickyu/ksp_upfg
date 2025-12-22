@@ -6,6 +6,7 @@ import numpy as np
 
 import settings
 from utilities import *
+from vessel_state import VesselState
 
 class FlightState:
    takeoff = 0,
@@ -49,25 +50,7 @@ def wait_for_launch(vessel:Vessel, liftoff_time:int, indicator=False):
    if indicator:
       client.drawing.clear()   
       
-def atmospheric_flight_control(vessel:Vessel, upfg_target):
-   client = vessel._client
-   
-   ref_frame = client.space_center.ReferenceFrame.create_hybrid(
-      position=vessel.orbit.body.non_rotating_reference_frame,
-      rotation=vessel.surface_reference_frame)
-
-   flight_info = vessel.flight()
-
-   ut = client.add_stream(getattr, client.space_center, 'ut')
-   velocity = client.add_stream(vessel.velocity, ref_frame)
-   mean_altitude = client.add_stream(getattr, flight_info, 'mean_altitude')
-   pitch = client.add_stream(getattr, flight_info, 'pitch')
-   roll = client.add_stream(getattr, flight_info, 'roll')
-   heading = client.add_stream(getattr, flight_info, 'heading')
-   angle_of_attack = client.add_stream(getattr, flight_info, 'angle_of_attack')
-   thrust = client.add_stream(getattr, vessel, 'thrust')
-   available_thrust = client.add_stream(getattr, vessel, 'available_thrust')
-
+def atmospheric_flight_control(vessel:Vessel, upfg_target, state:VesselState):
    target_azimuth = launch_azimuth(vessel, upfg_target.velocity, settings.mission['inclination'], upfg_target.angle)
    print(f'Target azimuth: {target_azimuth:.2f}')
    initial_azi = initial_azimuth(vessel)
@@ -81,18 +64,20 @@ def atmospheric_flight_control(vessel:Vessel, upfg_target):
    vessel.auto_pilot.engage()
 
    vessel.control.activate_next_stage() # main engine ignition
+   stage1_ignition_time = state.universal_time()
 
-   while thrust() < available_thrust() * 0.9:
+   while state.thrust() < state.available_thrust() * 0.9:
       pass
 
    vessel.control.activate_next_stage() # booster ignition
-   time.sleep(0.1)
-   vessel.control.activate_next_stage() # lift off
+   srb_ignition_time = state.universal_time()
 
-   liftoff_time = ut()
+   delay(state, 0.1)
+   vessel.control.activate_next_stage() # lift off
+   liftoff_time =state.universal_time()
    print(f'Liftoff at {liftoff_time:.2f}')
 
-   state = FlightState.takeoff
+   flight_state = FlightState.takeoff
 
    booster_separated = False  
    stage1_separated = False
@@ -102,69 +87,67 @@ def atmospheric_flight_control(vessel:Vessel, upfg_target):
    pitch_done = False   
 
    while not finished:
-      flight_time = ut() - liftoff_time
+      current_time = state.universal_time()
       
-      if not booster_separated and flight_time >= settings.booster_burn_time:
+      if not booster_separated and current_time - srb_ignition_time >= settings.booster_burn_time:
          print('Booster separation')
          vessel.control.activate_next_stage()
          booster_separated = True
 
-      if not stage1_separated and flight_time >= settings.first_stage_burn_time:
+      if not stage1_separated and current_time - stage1_ignition_time >= settings.first_stage_burn_time:
          print('Stage 1 separation')
          stage1_separated = True
          vessel.control.throttle = 0.0
-         time.sleep(0.1)
+         delay(state, 1.0)
          vessel.control.activate_next_stage()
-         time.sleep(1)
+         delay(state, 2.0)
          vessel.control.throttle = 1.0
          vessel.control.activate_next_stage()
          
-      match state:
+      match flight_state:
          case FlightState.takeoff:
-            #print('State: takeoff')
-            if mean_altitude() > settings.roll_altitude:
-               state = FlightState.roll_maneuver
+            if state.mean_altitude() > settings.roll_altitude:
+               flight_state = FlightState.roll_maneuver
          case FlightState.roll_maneuver:
-            #print('State: roll_maneuver')
             azi = initial_azimuth(vessel)
-            #print(f'roll_maneuver: azi {azi:.2f}')
             if (math.fabs(azi - target_azimuth) < 1.0):
-               state = FlightState.pitch_maneuver
+               flight_state = FlightState.pitch_maneuver
                pitch_angle = 90.0
             else:   
                vessel.auto_pilot.target_pitch_and_heading(90, target_azimuth)       
          case FlightState.pitch_maneuver: 
-            #print('State: pitch_maneuver')
             if not start_pitch_manuever:
-               if velocity()[0] > settings.pitch_velocity:
+               if state.vertical_speed() > settings.pitch_velocity:
+               #if state.mean_altitude() > 500.0:
                   start_pitch_manuever = True
-                  pitch_start_time = flight_time
+                  pitch_start_time = current_time
 
                   pitch_angle -= settings.pitch_rate
                   vessel.auto_pilot.target_pitch_and_heading(pitch_angle, target_azimuth)   
             else:      
-               if flight_time - pitch_start_time > 1.0:
-                  pitch_start_time = flight_time
+               if current_time - pitch_start_time > 1.0:
+                  pitch_start_time = current_time
 
                   if not pitch_done:
-                     #print(f'pitch: {pitch():.2f}')
-
                      if math.fabs(pitch_angle - 90.0 + settings.pitch_maneuver_angle) < 0.5:
                         pitch_done = True
                      else:
                         pitch_angle -= 0.5
                         vessel.auto_pilot.target_pitch_and_heading(pitch_angle, target_azimuth)   
                   else:      
-                     #print(f'aoa: {angle_of_attack():.2f}')
-                     if math.fabs(angle_of_attack()) < 0.5:
-                        state = FlightState.gravity_turn
+                     if math.fabs(state.angle_of_attack()) < 0.5:
+                        flight_state = FlightState.gravity_turn
                         vessel.auto_pilot.target_roll = 0.0
          case FlightState.gravity_turn:            
-            diff = pitch() - angle_of_attack()
+            diff = state.pitch() - state.angle_of_attack()
             vessel.auto_pilot.target_pitch_and_heading(diff, target_azimuth) 
-            if math.fabs(pitch() - settings.target_picth) < 1.0:
+            if math.fabs(state.pitch() - settings.target_picth) < 1.0:
                vessel.auto_pilot.target_pitch_and_heading(settings.target_picth, target_azimuth)
-               state = FlightState.wait_stage1_separated
+               flight_state = FlightState.wait_stage1_separated
+
+            if stage1_separated:
+               vessel.auto_pilot.target_pitch_and_heading(state.pitch(), target_azimuth)
+               finished = True
          case FlightState.wait_stage1_separated:   
             if stage1_separated:   
                finished = True
