@@ -17,6 +17,11 @@ def initial_azimuth(vessel:Vessel) -> float:
 
 def launch_azimuth(vessel:Vessel, target_vel, target_inc, flight_path_angle) -> float:
    long, lat = geo_position(vessel)
+
+   if target_inc < lat:
+      print('Target inclination below launch site!')
+      return 90.0
+
    binertial = math.cos(math.radians(target_inc)) / math.cos(math.radians(lat))
    if binertial < -1:
       binertial = -1
@@ -101,17 +106,17 @@ def normalize_vector(v:np.ndarray) -> np.ndarray:
 def ascending_node_vector(vessel:Vessel, orbit_inclination:float, dir:str) -> np.ndarray:
    long, lat = geo_position(vessel)
 
-   b = np.tan(np.pi/2 - orbit_inclination) * np.tan(np.radians(lat))
+   b = np.tan(np.pi/2 - orbit_inclination) * np.tan(math.radians(lat))
    b = np.arcsin(np.fmin(np.fmax(-1., b), 1.))
 
    position = cartesian_position(vessel, vessel.orbit.body.reference_frame)
    long_vector = vector_exclude(np.array([0., 1., 0.]), -np.array(position))
    long_vector = normalize_vector(long_vector)
 
-   if dir.upper() == 'NORTH':
+   if dir.upper() == 'SOUTH':
       v = rodrigues_rotation(long_vector, np.array([0., 1., 0.]), -b)
-   elif dir.upper() == 'SOUTH':
-      v = rodrigues_rotation(long_vector, np.array([0., 1., 0.]), np.pi+b)
+   elif dir.upper() == 'NORTH':
+      v = rodrigues_rotation(long_vector, np.array([0., 1., 0.]), np.pi + b)
    else:
       raise Exception('Unknown launch direction.')
    
@@ -124,8 +129,8 @@ def orbit_intercept_time(vessel:Vessel, dir:str, inclination:float, lan:float) -
    lan = math.radians(lan)
 
    if dir.upper() == 'NEAREST':
-      time_n = orbit_intercept_time(client, 'NORTH', inclination, lan)
-      time_s = orbit_intercept_time(client, 'SOUTH', inclination, lan)
+      time_n = orbit_intercept_time(vessel, 'NORTH', inclination, lan)
+      time_s = orbit_intercept_time(vessel, 'SOUTH', inclination, lan)
       if time_s < time_n:
          return time_s
       else:
