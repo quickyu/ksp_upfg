@@ -45,6 +45,10 @@ class VesselState:
 
       self.angle_of_attack_ = client.add_stream(getattr, vessel.flight(), 'angle_of_attack')
 
+      self.drag_coefficient_ = client.add_stream(getattr, vessel.flight(), 'drag_coefficient')
+
+      self.mach_ = client.add_stream(getattr, vessel.flight(), 'mach')
+
    def universal_time(self) -> float:
       return self.ut_()
    
@@ -98,3 +102,9 @@ class VesselState:
    
    def mean_altitude(self) -> float:
       return self.mean_altitude_()
+   
+   def drag_coefficient(self) -> float:
+      return self.drag_coefficient_()
+   
+   def mach(self) -> float:
+      return self.mach_()
