@@ -4,7 +4,6 @@ import numpy as np
 import math
 from collections import OrderedDict
 
-import settings
 from vessel_state import *
 from utilities import *
 
@@ -36,13 +35,13 @@ def vang(x, y):
    y = unit(y)
    return np.rad2deg(np.acos(np.clip(dot(x, y), -1, 1)))
 
-def setup_upfg_target() -> Struct:
-   if settings.mission['altitude'] < settings.mission['periapsis'] or settings.mission['altitude'] > settings.mission['apoapsis']: 
-      settings.mission["altitude"]  = settings.mission["periapsis"]
+def setup_upfg_target(config:dict) -> Struct:
+   if config['altitude'] < config['periapsis'] or config['altitude'] > config['apoapsis']: 
+      config["altitude"]  = config["periapsis"]
        
-   pe = settings.mission['periapsis'] + equatorial_radius
-   ap = settings.mission['apoapsis'] + equatorial_radius
-   target_altitude = settings.mission['altitude'] + equatorial_radius
+   pe = config['periapsis'] + equatorial_radius
+   ap = config['apoapsis'] + equatorial_radius
+   target_altitude = config['altitude'] + equatorial_radius
    sma = (pe + ap) / 2
    vpe = math.sqrt(mu * (2/pe - 1/sma))
    srm = pe * vpe
@@ -52,7 +51,7 @@ def setup_upfg_target() -> Struct:
    target = Struct()
    target.radius = target_altitude
 
-   normal = target_normal(settings.mission['inclination'], settings.mission['LAN'])
+   normal = target_normal(config['inclination'], config['LAN'])
    normal = -normal[[0, 2, 1]] # UPFG compatible direction
    target.normal = normal
 
