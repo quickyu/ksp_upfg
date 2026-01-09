@@ -3,8 +3,8 @@ from krpc.services.spacecenter import *
 import numpy as np
 import math
 import time
+import csv
 
-import settings
 from vessel_state import VesselState
 
 def initial_azimuth(vessel:Vessel) -> float:
@@ -15,7 +15,7 @@ def initial_azimuth(vessel:Vessel) -> float:
       azi = -azi
    return math.degrees(azi)
 
-def launch_azimuth(vessel:Vessel, target_vel, target_inc, flight_path_angle) -> float:
+def launch_azimuth(vessel:Vessel, target_vel, target_inc, flight_path_angle, direction:str) -> float:
    long, lat = geo_position(vessel)
 
    if target_inc < lat:
@@ -37,9 +37,9 @@ def launch_azimuth(vessel:Vessel, target_vel, target_inc, flight_path_angle) -> 
    azi = math.atan2(vroty, vrotx)
    azi = math.degrees(azi)
 
-   if settings.mission['direction'].upper() == 'NORTH':
+   if direction.upper() == 'NORTH':
       return 90.0 - azi
-   elif settings.mission['direction'].upper() == 'SOUTH':
+   elif direction == 'SOUTH':
       return 90.0 + azi
    else:
       raise Exception('Unknown launch direction.')
@@ -189,3 +189,54 @@ def delay(state:VesselState, t:float):
    while elapse < t:
       time.sleep(0.001)
       elapse = state.universal_time() - ts   
+
+def read_guidance_file(file_path:str) -> list[list]:
+   data_list = [] 
+   with open(file_path, mode='r') as csv_file:
+      csv_reader = csv.reader(csv_file, delimiter=',')
+
+      line_num = int(0)             
+      for row in csv_reader:
+         try:
+            row_data = [float(x) for x in row]
+            data_list.append(row_data)
+         except ValueError:
+            data_list.append(row) 
+         line_num += 1
+
+      if line_num != 15:
+         raise Exception('Incorrect number of lines.')  
+         
+   return data_list      
+
+def interp(guidance:list[list], time:float, start_index:int) -> tuple[float, int]:
+   timestamp = guidance[0]
+   pitches = guidance[2]  
+
+   if time < timestamp[0]:
+      pitch = pitches[0]
+      index  = 0
+   elif time > timestamp[-1]:  
+      pitch = pitches[-1]
+      index = len(timestamp) - 1
+   else:
+      index = -1
+      for i in range(start_index, len(timestamp)):
+         if time >= timestamp[i] and time < timestamp[i + 1]:  
+            index = i  
+            break
+
+      x0 = timestamp[index]  
+      x1 = timestamp[index + 1]
+      y0 = pitches[index] 
+      y1 = pitches[index + 1]
+      pitch = (y0 * (x1 - time) + y1 * (time - x0)) / (x1 - x0)
+
+   return pitch, index
+
+def find_ignition_offset(guidance:list[list]) -> float:
+   length = len(guidance[0])
+   for i in range(length):
+      if guidance[13][i] == 'Release Clamp':  
+         return -guidance[0][i]
+   return 0.0   
