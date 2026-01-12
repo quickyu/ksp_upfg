@@ -6,7 +6,7 @@ import argparse
 import yaml
 
 from utilities import * 
-from AtmosphericFlight import wait_for_launch, atmospheric_flight_control
+from AtmosphericFlight import *
 from information_window import InformationWindow
 import upfg
 from vessel_state import VesselState
@@ -145,11 +145,11 @@ def closed_loop_guidance(vessel:Vessel, upfg_target:dict, state:VesselState):
       info_window.target_speed = f'Target Speed: {upfg_target.velocity/1000.0:.2f}'
       info_window.orbit_speed = f'Orbit Speed: {state.speed_eci()/1000.0:.2f}'
       info_window.tgo = f'TGO: {upfg_internal.tgo:.2f}'
-      info_window.vgo = f'VGO: [{float(upfg_internal.vgo[0]/1000.0):.2f}, {float(upfg_internal.vgo[1]/1000.0):.2f}, {float(upfg_internal.vgo[2]/1000.0):.2f}]'
+      info_window.vgo = f'VGO: {float(upfg_internal.vgo[0]/1000.0):.2f}, {float(upfg_internal.vgo[1]/1000.0):.2f}, {float(upfg_internal.vgo[2]/1000.0):.2f}'
 
-      print(f'utc: {state.universal_time()}, tgo: {upfg_guided.tgo:.2f}, '
-            f'vgo: [{float(upfg_guided.vgo[0]/1000.0):.2f}, {float(upfg_guided.vgo[1]/1000.0):.2f}, {float(upfg_guided.vgo[2]/1000.0):.2f}], '
-            f'orbit speed: {state.speed_eci():.2f}, target orbit speed: {upfg_target.velocity:.2f}')
+      #print(f'utc: {state.universal_time()}, tgo: {upfg_guided.tgo:.2f}, '
+      #      f'vgo: [{float(upfg_internal.vgo[0]/1000.0):.2f}, {float(upfg_internal.vgo[1]/1000.0):.2f}, {float(upfg_internal.vgo[2]/1000.0):.2f}], '
+      #      f'orbit speed: {state.speed_eci():.2f}, target orbit speed: {upfg_target.velocity:.2f}')
 
       delay(state, 0.1)  
 
@@ -162,39 +162,28 @@ def flight():
    args = parser.parse_args()
 
    config_dir = args.config_dir
-
    mission_config = load_mission_config(config_dir)
-
-   client = krpc.connect(name='Launch to orbit')
-   vessel = client.space_center.active_vessel
-   vessel.auto_pilot.engage()
-   vessel.auto_pilot.disengage()
-   client.close()
+   guidance = read_guidance_file(config_dir + '/atmo_ascent_guidance.csv')
 
    client = krpc.connect(name='Launch to orbit')
    vessel = client.space_center.active_vessel
    print(vessel.name)
 
-   long, lat = geo_position(vessel)
-   print(f'Geo position: {long}, {lat}')
+   vessel_state = VesselState(vessel)
 
    intercept_time = orbit_intercept_time(vessel, mission_config['direction'], mission_config['inclination'], mission_config['LAN'])
-   liftoff_time = int(client.space_center.ut + intercept_time - mission_config['launch_time_advance'])
-   print(f'Intercept time: {intercept_time}, Liftoff time: {liftoff_time}')
-
-   guidance = read_guidance_file(config_dir + '/atmo_ascent_guidance.csv')
+   liftoff_time = round(client.space_center.ut + intercept_time - mission_config['launch_time_advance'])
+   ignition_time = liftoff_time + ignition_offset(guidance)
+   print(f'Intercept time: {intercept_time}, Ignition time: {ignition_time}, Liftoff time: {liftoff_time}')
 
    global info_window
    info_window = InformationWindow(liftoff_time)
-
-   vessel_state = VesselState(vessel)
+   
    upfg_target = upfg.setup_upfg_target(mission_config)
 
-   ignition_time = liftoff_time + find_ignition_offset(guidance)
+   client.space_center.warp_to(ignition_time - 10)
 
-   wait_for_launch(vessel, vessel_state, ignition_time, indicator=True, target_inc=mission_config['inclination'], target_lan=mission_config['LAN'])
-
-   atmospheric_flight_control(vessel, upfg_target, vessel_state, guidance, mission_config)
+   atmospheric_flight_control(vessel, upfg_target, vessel_state, ignition_time, liftoff_time, guidance, mission_config)
 
    delay(vessel_state, 3.0)
    info_window.upfg_status = 'UPFG: Active'

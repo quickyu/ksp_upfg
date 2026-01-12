@@ -176,7 +176,7 @@ def draw_vector(vessel:Vessel, vector:np.ndarray, color:tuple, ref_frame:Referen
 
    line = client.drawing.add_direction_from_com(vector.tolist(), ref_frame, length)
    line.color = color
-   line.thickness = 1
+   line.thickness = 0.3
 
 def clear_lines(vessel:Vessel):
    client = vessel._client
@@ -189,54 +189,4 @@ def delay(state:VesselState, t:float):
    while elapse < t:
       time.sleep(0.001)
       elapse = state.universal_time() - ts   
-
-def read_guidance_file(file_path:str) -> list[list]:
-   data_list = [] 
-   with open(file_path, mode='r') as csv_file:
-      csv_reader = csv.reader(csv_file, delimiter=',')
-
-      line_num = int(0)             
-      for row in csv_reader:
-         try:
-            row_data = [float(x) for x in row]
-            data_list.append(row_data)
-         except ValueError:
-            data_list.append(row) 
-         line_num += 1
-
-      if line_num != 15:
-         raise Exception('Incorrect number of lines.')  
-         
-   return data_list      
-
-def interp(guidance:list[list], time:float, start_index:int) -> tuple[float, int]:
-   timestamp = guidance[0]
-   pitches = guidance[2]  
-
-   if time < timestamp[0]:
-      pitch = pitches[0]
-      index  = 0
-   elif time > timestamp[-1]:  
-      pitch = pitches[-1]
-      index = len(timestamp) - 1
-   else:
-      index = -1
-      for i in range(start_index, len(timestamp)):
-         if time >= timestamp[i] and time < timestamp[i + 1]:  
-            index = i  
-            break
-
-      x0 = timestamp[index]  
-      x1 = timestamp[index + 1]
-      y0 = pitches[index] 
-      y1 = pitches[index + 1]
-      pitch = (y0 * (x1 - time) + y1 * (time - x0)) / (x1 - x0)
-
-   return pitch, index
-
-def find_ignition_offset(guidance:list[list]) -> float:
-   length = len(guidance[0])
-   for i in range(length):
-      if guidance[13][i] == 'Release Clamp':  
-         return -guidance[0][i]
-   return 0.0   
+ 
