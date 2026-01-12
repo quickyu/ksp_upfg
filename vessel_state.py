@@ -7,6 +7,7 @@ class VesselState:
       client = vessel._client
     
       self.ut_ = client.add_stream(getattr, client.space_center, 'ut')
+      self.ut_.start()
 
       self.mass_ = client.add_stream(getattr, vessel, 'mass')
 
