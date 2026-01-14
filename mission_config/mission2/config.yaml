@@ -4,8 +4,8 @@ periapsis: 200000.0 # m
 apoapsis: 200000.0
 altitude: 200000.0
 
-inclination: 28.659 # deg
-LAN: 0.0 # deg
+inclination: 90.0 # deg
+LAN: 150.0 # deg
 
 direction: 'NORTH'
 
