@@ -12,7 +12,7 @@ import upfg
 from vessel_state import VesselState
 
 def load_mission_config(config_path:str) -> dict:  
-   with open(config_path + 'config.yaml', 'r', encoding='utf-8') as file:
+   with open(config_path + '/config.yaml', 'r', encoding='utf-8') as file:
       data = yaml.safe_load(file)
       return data
 
@@ -78,6 +78,8 @@ def closed_loop_guidance(vessel:Vessel, upfg_target:dict, state:VesselState):
 
    last_vector = np.zeros(3)
 
+   adj_thrust = False
+
    def reset_upfg():
       print('Reset UPFG')
       nonlocal upfg_internal, upfg_converged, iteration, color, last_tgo, last_time
@@ -131,12 +133,15 @@ def closed_loop_guidance(vessel:Vessel, upfg_target:dict, state:VesselState):
          vessel.auto_pilot.target_pitch = pitch
          vessel.auto_pilot.target_roll = 0.0
 
-      if upfg_converged and upfg_guided.tgo < 1.0:
-         end_time = current_time + upfg_guided.tgo
-         while state.universal_time() < end_time:  
-            time.sleep(0.001)
+      if upfg_converged and upfg_guided.tgo <= 1.5:
+         delay(state, upfg_guided.tgo)   
          vessel.control.throttle = 0.0
          break
+
+      if not adj_thrust and upfg_guided.tgo <= 45.0:
+         adj_thrust = True
+         vessel.control.throttle = 0.01
+         reset_upfg()
 
       if state.speed_eci() > upfg_target.velocity:
          vessel.control.throttle = 0.0
