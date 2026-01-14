@@ -30,15 +30,18 @@ def read_guidance_file(file_path:str) -> list[list]:
          
    return data_list      
 
-def interp(guidance:list[list], time:float, start_index:int) -> tuple[float, int]:
+def interp(guidance:list[list], time:float, start_index:int) -> tuple[float, float, int]:
    timestamp = guidance[0]
-   pitches = guidance[2]  
+   azi_angles = guidance[1]
+   pitch_angles = guidance[2]  
 
    if time < timestamp[0]:
-      pitch = pitches[0]
+      azi = azi_angles[0]
+      pitch = pitch_angles[0]
       index  = 0
    elif time > timestamp[-1]:  
-      pitch = pitches[-1]
+      azi = azi_angles[-1]
+      pitch = pitch_angles[-1]
       index = len(timestamp) - 1
    else:
       index = -1
@@ -49,11 +52,16 @@ def interp(guidance:list[list], time:float, start_index:int) -> tuple[float, int
 
       x0 = timestamp[index]  
       x1 = timestamp[index + 1]
-      y0 = pitches[index] 
-      y1 = pitches[index + 1]
+
+      y0 = pitch_angles[index] 
+      y1 = pitch_angles[index + 1]
       pitch = (y0 * (x1 - time) + y1 * (time - x0)) / (x1 - x0)
 
-   return pitch, index
+      y0 = (azi_angles[index] + 180.0) % 360.0 - 180.0
+      y1 = (azi_angles[index + 1] + 180.0) % 360.0 - 180.0
+      azi = (y0 * (x1 - time) + y1 * (time - x0)) / (x1 - x0)
+
+   return azi, pitch, index
 
 def ignition_offset(guidance:list[list]) -> int:
    length = len(guidance[0])
@@ -61,9 +69,6 @@ def ignition_offset(guidance:list[list]) -> int:
       if guidance[13][i] == 'Release Clamp':  
          return -int(guidance[0][i])
    return 0  
-
-def liftoff_offset(guidance:list[list]) -> float:
-   pass
 
 def draw_normal_indicator(vessel:Vessel, target_inc, target_lan):      
    client = vessel._client
@@ -142,11 +147,11 @@ def atmospheric_flight_control(vessel:Vessel, upfg_target, state:VesselState, ig
 
          if mission_seconds <= guidance[0][-1]:
             aoa = state.angle_of_attack()
-            pitch_ctrl, start_index = interp(guidance, mission_seconds, start_index)
-            print(f'Pitch: {pitch_ctrl:.2f}, AOA: {aoa:.2f}')
+            azi_ctrl, pitch_ctrl, start_index = interp(guidance, mission_seconds, start_index)
+            print(f'Azi: {azi_ctrl:.2f}, Pitch: {pitch_ctrl:.2f}, AOA: {aoa:.2f}')
             vessel.auto_pilot.target_pitch = pitch_ctrl
             vessel.auto_pilot.target_roll = 0.0
-            vessel.auto_pilot.target_heading = target_azimuth
+            vessel.auto_pilot.target_heading = azi_ctrl
          else:
             break
          
