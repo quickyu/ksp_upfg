@@ -183,10 +183,17 @@ def clear_lines(vessel:Vessel):
    client.drawing.clear()
 
 def delay(state:VesselState, t:float):
-   t -= 0.02
-   ts = state.universal_time()
-   elapse = 0.0
-   while elapse < t:
-      time.sleep(0.001)
-      elapse = state.universal_time() - ts   
+   if t <= 0.02: 
+      return
+
+   t = round(t / 0.02) * 20
+   end_time = int(state.universal_time() * 1000) + t
+
+   while True:
+      with state.ut_.condition:
+         state.ut_.condition.wait()
+
+      current_time = int(state.universal_time() * 1000)
+      if current_time == end_time:
+         break
  
